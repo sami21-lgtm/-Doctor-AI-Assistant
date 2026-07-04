@@ -8,12 +8,10 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Background image overlay (set your photo in CSS) -->
     <div class="bg-image"></div>
 
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-logo">🤖</div>
@@ -26,6 +24,7 @@
             <span>＋</span> নতুন কথোপকথন
         </button>
         <div class="conversations-list" id="conversationsList"></div>
+        
         <div class="sidebar-footer">
             Developed by <strong>Md Emtiaz Hossain Sami</strong><br>
             Dept. of Software Engineering<br>
@@ -33,7 +32,6 @@
         </div>
     </aside>
 
-    <!-- Main Chat -->
     <div class="main" id="mainArea">
         <div class="top-bar">
             <button class="menu-toggle" id="menuToggle" title="মেনু">☰</button>
@@ -42,9 +40,14 @@
                 <div class="top-bar-name">Sami AI</div>
                 <div class="top-bar-status"><span class="status-dot"></span> সক্রিয় ও প্রস্তুত</div>
             </div>
-            <button class="voice-toggle-btn" id="voiceToggleBtn" title="ভয়েস চালু/বন্ধ">
-                🔊 ভয়েস বন্ধ
-            </button>
+            
+            <div class="voice-toggle-wrapper">
+                <span class="voice-label" id="voiceStatusText">🔊 ভয়েস বন্ধ</span>
+                <label class="switch">
+                    <input type="checkbox" id="voiceToggleBtn">
+                    <span class="slider round"></span>
+                </label>
+            </div>
         </div>
 
         <div class="messages-container" id="messagesContainer">
