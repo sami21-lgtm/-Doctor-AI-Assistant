@@ -254,15 +254,20 @@ input:checked + .slider:before {
 }
 .msg-avatar.bot-avatar { background: linear-gradient(135deg, #6c5ce7, #a29bfe); }
 .msg-avatar.user-avatar { background: linear-gradient(135deg, #555, #777); }
+
+/* Updated Bubble Design (Fixed wrapping & size) */
 .msg-bubble {
+    width: fit-content;       
+    min-width: 100px;         /* বাবল যেন একদম ছোট বা চ্যাপ্টা না দেখায় */
     max-width: 72%;
-    padding: 12px 16px;
+    padding: 12px 18px;       /* ভেতরের স্পেস একটু বাড়ানো হয়েছে */
     border-radius: var(--radius-lg);
-    font-size: 0.93rem;
-    line-height: 1.7;
+    font-size: 1.05rem;       /* লেখার সাইজ বড় করা হয়েছে */
+    line-height: 1.6;
     word-wrap: break-word;
     font-family: var(--font-bn);
 }
+
 .message-row.user .msg-bubble { background: var(--user-bubble); border: 1px solid var(--user-bubble-border); }
 .message-row.bot .msg-bubble { background: var(--bot-bubble); border: 1px solid var(--bot-bubble-border); }
 .msg-time { font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; text-align: right; }
