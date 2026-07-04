@@ -5,7 +5,7 @@ import random
 from datetime import datetime
 
 app = Flask(__name__, static_folder='static', static_url_path='')
-CORS(app, resources={r"/api/*": {"origins": "https://sami21-lgtm.github.io"}})ো
+CORS(app, resources={r"/api/*": {"origins": "https://sami21-lgtm.github.io"}})
 
 DATABASE = 'sami_ai.db'
 
