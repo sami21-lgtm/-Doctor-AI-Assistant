@@ -9,19 +9,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const historyList = document.getElementById("historyList");
     const newRxBtn = document.getElementById("newRxBtn");
 
-    // LocalStorage থেকে নিরাপদভাবে API Key লোড করা (GitHub Block ঠেকাতে)
-    let GEMINI_API_KEY = localStorage.getItem("DR_SAMI_GEMINI_KEY") || "";
+    // LocalStorage থেকে Groq API Key লোড করা
+    let GROQ_API_KEY = localStorage.getItem("DR_SAMI_GROQ_KEY") || "";
 
-    // API Key নেওয়ার সহজ ও নিরাপদ ফাংশন
     function getApiKey() {
-        if (!GEMINI_API_KEY) {
-            const userKey = prompt("🔑 Please enter your Gemini API Key (saved safely in your browser):");
+        if (!GROQ_API_KEY) {
+            const userKey = prompt("🔑 Please enter your Free Groq API Key (saved safely in browser):");
             if (userKey && userKey.trim() !== "") {
-                GEMINI_API_KEY = userKey.trim();
-                localStorage.setItem("DR_SAMI_GEMINI_KEY", GEMINI_API_KEY);
+                GROQ_API_KEY = userKey.trim();
+                localStorage.setItem("DR_SAMI_GROQ_KEY", GROQ_API_KEY);
             }
         }
-        return GEMINI_API_KEY;
+        return GROQ_API_KEY;
     }
 
     newRxBtn.addEventListener("click", () => {
@@ -48,7 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
         loader.style.display = "block";
         generateBtn.disabled = true;
 
-        // 🌐 System Prompt (Bangla + English Auto Detect)
         const systemPrompt = `
         You are an experienced and highly competent medical specialist AI (Dr. Sami AI). 
         The user will provide a disease name or medical symptoms in EITHER English or Bengali (বাংলা).
@@ -96,33 +94,35 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         try {
-            // ✅ গুগলের বর্তমান অফিসিয়াল মডেল gemini-2.0-flash ব্যবহার করা হয়েছে
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`, {
+            // Groq API Endpoint (Using Meta Llama 3.3 Model)
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${activeKey}`
+                },
                 body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: systemPrompt },
-                            { text: `Patient Symptoms/Condition: ${diseaseText}` }
-                        ]
-                    }]
+                    model: "llama-3.3-70b-versatile",
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: `Patient Symptoms/Condition: ${diseaseText}` }
+                    ],
+                    temperature: 0.5
                 })
             });
 
             const data = await response.json();
 
             if (data.error) {
-                // Key ভুল বা ব্লকড হলে অটো রিসেট করবে
-                if (data.error.code === 400 || data.error.code === 401 || data.error.code === 403) {
-                    localStorage.removeItem("DR_SAMI_GEMINI_KEY");
-                    GEMINI_API_KEY = "";
-                    throw new Error("Invalid or revoked API key! Key has been reset. Please click Generate again and enter a fresh API Key.");
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem("DR_SAMI_GROQ_KEY");
+                    GROQ_API_KEY = "";
+                    throw new Error("Invalid API Key! Key has been reset. Please click Generate again and enter a fresh Groq API Key.");
                 }
-                throw new Error(data.error.message || "API Error occurred.");
+                throw new Error(data.error.message || "Groq API Error occurred.");
             }
 
-            const aiResponse = data.candidates[0].content.parts[0].text;
+            const aiResponse = data.choices[0].message.content;
             
             // Format and Display Output
             const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -154,6 +154,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Local Storage History Management
+    let history = JSON.parse(localStorage.getItem("RX_HISTORY")) || [];
+
     function saveToHistory(disease, result, date) {
         const item = { id: Date.now(), disease, result, date };
         history.unshift(item);
