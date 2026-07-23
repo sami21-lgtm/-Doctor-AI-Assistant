@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // 🔑 PASTE YOUR GEMINI API KEY HERE DIRECTLY
-    const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+    
+    const GEMINI_API_KEY = "AQ.Ab8RN6Ke1-8yvBVg4KKf5MdJC7NEA2OzRzlcgUZ88JQNUhXVow";
 
     const diseaseInput = document.getElementById("diseaseInput");
     const generateBtn = document.getElementById("generateBtn");
@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+        if (!GEMINI_API_KEY || GEMINI_API_KEY === "AQ.Ab8RN6Ke1-8yvBVg4KKf5MdJC7NEA2OzRzlcgUZ88JQNUhXVow") {
             alert("Please set your valid Gemini API Key inside script.js!");
             return;
         }
