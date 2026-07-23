@@ -1,429 +1,141 @@
-(function() {
-    const sidebar = document.getElementById('sidebar');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    const menuToggle = document.getElementById('menuToggle');
-    const newChatBtn = document.getElementById('newChatBtn');
-    const conversationsList = document.getElementById('conversationsList');
-    const messagesContainer = document.getElementById('messagesContainer');
-    const welcomeScreen = document.getElementById('welcomeScreen');
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const micBtn = document.getElementById('micBtn');
-    const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+document.addEventListener("DOMContentLoaded", () => {
+    // 🔑 PASTE YOUR GEMINI API KEY HERE DIRECTLY
+    const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
 
-    let currentConversationId = null;
-    let conversations = [];
-    let messages = [];
-    let voiceEnabled = false;
-    let isListening = false;
-    let recognition = null;
-    const synth = window.speechSynthesis;
-    let isProcessing = false;
+    const diseaseInput = document.getElementById("diseaseInput");
+    const generateBtn = document.getElementById("generateBtn");
+    const loader = document.getElementById("loader");
+    const rxOutput = document.getElementById("rxOutput");
+    const rxDate = document.getElementById("rxDate");
+    const rxDisease = document.getElementById("rxDisease");
+    const historyList = document.getElementById("historyList");
+    const newRxBtn = document.getElementById("newRxBtn");
 
-    function init() {
-        loadConversations();
-        setupSpeechRecognition();
-        setupSpeechSynthesis();
-        if (!currentConversationId) showWelcomeScreen(true);
-        updateSendButton();
-    }
+    let history = JSON.parse(localStorage.getItem("RX_HISTORY")) || [];
 
-    // আপনার PythonAnywhere লাইভ সার্ভারের সাথে যোগাযোগের মূল ফাংশন
-    async function apiCall(endpoint, method = 'GET', body = null) {
-        const baseUrl = 'https://005sami.pythonanywhere.com';
-        const options = { 
-            method, 
-            headers: { 'Content-Type': 'application/json' } 
-        };
-        if (body) options.body = JSON.stringify(body);
+    newRxBtn.addEventListener("click", () => {
+        diseaseInput.value = "";
+        rxOutput.innerHTML = `<div class="placeholder-text">Enter your symptoms above and click <strong>"Generate Prescription & Tests"</strong> to create a digital prescription.</div>`;
+        rxDisease.textContent = "--";
+        rxDate.textContent = "--/--/----";
+    });
 
-        const response = await fetch(baseUrl + endpoint, options);
-        if (!response.ok) throw new Error(`API Error: ${response.status}`);
-        return response.json();
-    }
+    // Generate Prescription & Tests
+    generateBtn.addEventListener("click", async () => {
+        const diseaseText = diseaseInput.value.trim();
+        if (!diseaseText) {
+            alert("Please enter a disease name or symptoms!");
+            return;
+        }
 
-    async function sendMessage(message) {
-        if (isProcessing || !message.trim()) return;
-        isProcessing = true;
-        updateSendButton();
-        showWelcomeScreen(false);
+        if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+            alert("Please set your valid Gemini API Key inside script.js!");
+            return;
+        }
 
-        const userMsg = {
-            role: 'user',
-            content: message.trim(),
-            language: 'bn',
-            created_at: new Date().toISOString()
-        };
-        messages.push(userMsg);
-        renderMessages();
-        userInput.value = '';
-        autoResizeTextarea();
-        scrollToBottom();
-        showTypingIndicator(true);
+        loader.style.display = "block";
+        generateBtn.disabled = true;
+
+        const systemPrompt = `
+        You are an experienced and highly competent medical specialist AI (Dr. Sami AI). 
+        The user will provide a disease name or medical symptoms. Your job is to generate a comprehensive, professional digital prescription and a list of recommended diagnostic tests.
+
+        Strictly output the response in clear English using the following structure:
+
+        ### 🩺 Clinical Diagnosis / Observation
+        [Provide a brief clinical assessment based on symptoms]
+
+        ### 📋 Recommended Diagnostic Tests
+        - [Test 1 Name] - (Reason/Purpose)
+        - [Test 2 Name] - (Reason/Purpose)
+
+        ### 💊 Prescribed Medications (Rx)
+        1. **[Generic / Brand Name]** - [Dosage: e.g., 1-0-1] - [Timing: e.g., After Meals] - [Duration: e.g., 5 Days]
+        2. **[Medication Name]** - [Dosage] - [Timing] - [Duration]
+
+        ### 📝 Lifestyle & Home Care Advice
+        - [Advice 1]
+        - [Advice 2]
+
+        ### 🚨 Red Flag Warning Symptoms
+        - [Critical symptoms that require immediate emergency hospital visitation]
+        `;
 
         try {
-            const data = await apiCall('/api/chat', 'POST', {
-                message: message.trim(),
-                conversation_id: currentConversationId,
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: systemPrompt },
+                            { text: `Patient Symptoms/Condition: ${diseaseText}` }
+                        ]
+                    }]
+                })
             });
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error.message || "API Error occurred.");
+            }
+
+            const aiResponse = data.candidates[0].content.parts[0].text;
             
-            if (data.conversation_id) currentConversationId = data.conversation_id;
+            // Format and Display Output
+            const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            rxDate.textContent = today;
+            rxDisease.textContent = diseaseText.substring(0, 35) + (diseaseText.length > 35 ? "..." : "");
             
-            showTypingIndicator(false);
-            
-            const botMsg = {
-                role: 'assistant',
-                content: data.response,
-                language: 'bn',
-                created_at: new Date().toISOString()
-            };
-            messages.push(botMsg);
-            renderMessages();
-            scrollToBottom();
-            
-            if (voiceEnabled) speakText(data.response);
-            loadConversations();
+            rxOutput.innerHTML = formatMarkdown(aiResponse);
+
+            // Save to Local History
+            saveToHistory(diseaseText, aiResponse, today);
+
         } catch (error) {
-            showTypingIndicator(false);
-            const errorMsg = {
-                role: 'assistant',
-                content: '⚠️ কিছু ভুল হয়েছে। দয়া করে আবার চেষ্টা করুন।',
-                language: 'bn',
-                created_at: new Date().toISOString()
-            };
-            messages.push(errorMsg);
-            renderMessages();
-            scrollToBottom();
+            alert("Error: " + error.message + "\nPlease check your API Key in script.js.");
+        } finally {
+            loader.style.display = "none";
+            generateBtn.disabled = false;
         }
-        isProcessing = false;
-        updateSendButton();
-    }
+    });
 
-    async function loadConversations() {
-        try {
-            const data = await apiCall('/api/conversations');
-            conversations = data.conversations || [];
-            renderConversationsList();
-        } catch (error) { 
-            console.error(error); 
-        }
-    }
-
-    async function loadConversationMessages(convId) {
-        try {
-            const data = await apiCall(`/api/conversations/${convId}/messages`);
-            messages = data.messages || [];
-            currentConversationId = convId;
-            renderMessages();
-            scrollToBottom();
-            showWelcomeScreen(messages.length === 0);
-            renderConversationsList();
-            closeSidebar();
-        } catch (error) { 
-            console.error(error); 
-        }
-    }
-
-    async function deleteConversation(convId, e) {
-        e.stopPropagation();
-        if (!confirm('এই কথোপকথনটি মুছে ফেলবেন?')) return;
-        try {
-            await apiCall(`/api/conversations/${convId}`, 'DELETE');
-            if (currentConversationId === convId) {
-                currentConversationId = null;
-                messages = [];
-                renderMessages();
-                showWelcomeScreen(true);
-            }
-            await loadConversations();
-        } catch (error) { 
-            console.error(error); 
-        }
-    }
-
-    function renderMessages() {
-        const existingWelcome = document.getElementById('welcomeScreen');
-        messagesContainer.innerHTML = '';
-        if (existingWelcome && messages.length === 0) {
-            messagesContainer.appendChild(existingWelcome);
-            showWelcomeScreen(true);
-            return;
-        }
-        if (messages.length === 0) { 
-            showWelcomeScreen(true); 
-            return; 
-        }
+    // Simple Markdown Parser Function
+    function formatMarkdown(text) {
+        let html = text
+            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/^\- (.*$)/gim, '<ul><li>$1</li></ul>')
+            .replace(/\n/g, '<br>');
         
-        showWelcomeScreen(false);
-        messages.forEach(msg => {
-            const row = document.createElement('div');
-            row.className = `message-row ${msg.role}`;
-            
-            const avatar = document.createElement('div');
-            avatar.className = `msg-avatar ${msg.role === 'assistant' ? 'bot-avatar' : 'user-avatar'}`;
-            avatar.textContent = msg.role === 'assistant' ? '🤖' : '👤';
-            
-            const bubbleWrap = document.createElement('div');
-            const bubble = document.createElement('div');
-            bubble.className = 'msg-bubble';
-            bubble.innerHTML = escapeHTML(msg.content).replace(/\n/g, '<br>');
-            
-            const time = document.createElement('div');
-            time.className = 'msg-time';
-            time.textContent = formatTime(msg.created_at);
-            
-            bubbleWrap.appendChild(bubble);
-            bubbleWrap.appendChild(time);
-            
-            if (msg.role === 'assistant') { 
-                row.appendChild(avatar); 
-                row.appendChild(bubbleWrap); 
-            } else { 
-                row.appendChild(bubbleWrap); 
-                row.appendChild(avatar); 
-            }
-            messagesContainer.appendChild(row);
-        });
+        return html.replace(/<\/ul><br><ul>/g, '');
     }
 
-    function renderConversationsList() {
-        conversationsList.innerHTML = '';
-        if (conversations.length === 0) {
-            const empty = document.createElement('div');
-            empty.style.cssText = 'padding:20px;text-align:center;color:var(--text-muted);font-size:0.8rem;';
-            empty.textContent = 'কোনো কথোপকথন নেই';
-            conversationsList.appendChild(empty);
-            return;
-        }
-        conversations.forEach(conv => {
-            const item = document.createElement('div');
-            item.className = `conv-item ${conv.id === currentConversationId ? 'active' : ''}`;
-            item.textContent = conv.title || 'শিরোনামহীন';
-            item.addEventListener('click', () => loadConversationMessages(conv.id));
-            
-            const delBtn = document.createElement('button');
-            delBtn.className = 'delete-conv';
-            delBtn.textContent = '🗑';
-            delBtn.addEventListener('click', (e) => deleteConversation(conv.id, e));
-            
-            item.appendChild(delBtn);
-            conversationsList.appendChild(item);
-        });
+    // Local Storage History Management
+    function saveToHistory(disease, result, date) {
+        const item = { id: Date.now(), disease, result, date };
+        history.unshift(item);
+        if (history.length > 10) history.pop();
+        localStorage.setItem("RX_HISTORY", JSON.stringify(history));
+        renderHistory();
     }
 
-    function showWelcomeScreen(show) {
-        const ws = document.getElementById('welcomeScreen');
-        if (show) {
-            if (!ws) {
-                const wsNew = document.createElement('div');
-                wsNew.className = 'welcome-screen';
-                wsNew.id = 'welcomeScreen';
-                wsNew.innerHTML = `
-                    <div class="welcome-avatar">🤖</div>
-                    <div class="welcome-title">Sami AI তে স্বাগতম!</div>
-                    <div class="welcome-subtitle">আমি বাংলায় উত্তর দিই। আপনি ইংরেজি বা বাংলায় লিখুন।</div>
-                    <div class="welcome-suggestions">
-                        <div class="suggestion-chip" data-msg="তুমি কে?">👋 তুমি কে?</div>
-                        <div class="suggestion-chip" data-msg="What can you do?">💡 কী করতে পারো?</div>
-                        <div class="suggestion-chip" data-msg="আজকের আবহাওয়া কেমন?">🌤 আবহাওয়া</div>
-                        <div class="suggestion-chip" data-msg="Tell me a joke">😄 কৌতুক বলো</div>
-                    </div>
-                `;
-                messagesContainer.appendChild(wsNew);
-                attachSuggestionListeners();
-            } else {
-                ws.style.display = 'flex';
-            }
-            messagesContainer.style.justifyContent = 'center';
-        } else {
-            if (ws) ws.style.display = 'none';
-            messagesContainer.style.justifyContent = 'flex-start';
-        }
-    }
-
-    function attachSuggestionListeners() {
-        document.querySelectorAll('.suggestion-chip').forEach(chip => {
-            chip.addEventListener('click', function() {
-                const msg = this.getAttribute('data-msg');
-                if (msg) { 
-                    userInput.value = msg; 
-                    sendMessage(msg); 
-                }
+    function renderHistory() {
+        historyList.innerHTML = "";
+        history.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "history-item";
+            div.textContent = `${item.disease}`;
+            div.addEventListener("click", () => {
+                diseaseInput.value = item.disease;
+                rxDate.textContent = item.date;
+                rxDisease.textContent = item.disease;
+                rxOutput.innerHTML = formatMarkdown(item.result);
             });
+            historyList.appendChild(div);
         });
     }
 
-    function showTypingIndicator(show) {
-        const existing = document.getElementById('typingIndicator');
-        if (show) {
-            if (!existing) {
-                const indicator = document.createElement('div');
-                indicator.id = 'typingIndicator';
-                indicator.className = 'message-row bot';
-                indicator.innerHTML = `
-                    <div class="msg-avatar bot-avatar">🤖</div>
-                    <div><div class="msg-bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div></div>
-                `;
-                messagesContainer.appendChild(indicator);
-                scrollToBottom();
-            }
-        } else { 
-            if (existing) existing.remove(); 
-        }
-    }
-
-    function scrollToBottom() { 
-        setTimeout(() => messagesContainer.scrollTop = messagesContainer.scrollHeight, 50); 
-    }
-
-    function escapeHTML(str) { 
-        const div = document.createElement('div'); 
-        div.textContent = str; 
-        return div.innerHTML; 
-    }
-    
-    function formatTime(iso) { 
-        if (!iso) return ''; 
-        return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); 
-    }
-    
-    function autoResizeTextarea() { 
-        userInput.style.height = 'auto'; 
-        userInput.style.height = Math.min(userInput.scrollHeight, 150) + 'px'; 
-    }
-    
-    function updateSendButton() { 
-        sendBtn.disabled = !userInput.value.trim() || isProcessing; 
-    }
-
-    function setupSpeechRecognition() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { 
-            micBtn.style.display = 'none'; 
-            return; 
-        }
-        recognition = new SR();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.onresult = (event) => {
-            let transcript = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                transcript += event.results[i][0].transcript;
-            }
-            userInput.value = transcript;
-            autoResizeTextarea();
-            updateSendButton();
-            if (event.results[0]?.isFinal) { 
-                stopListening(); 
-                if (transcript.trim()) sendMessage(transcript.trim()); 
-            }
-        };
-        recognition.onerror = () => stopListening();
-        recognition.onend = () => stopListening();
-    }
-
-    function setupSpeechSynthesis() {
-        if (!synth) {
-            const wrapper = document.querySelector('.voice-toggle-wrapper');
-            if(wrapper) wrapper.style.display = 'none';
-        }
-    }
-
-    function startListening() {
-        if (!recognition || isListening) return;
-        recognition.lang = 'bn-BD'; 
-        try { 
-            recognition.start(); 
-            isListening = true; 
-            micBtn.classList.add('listening'); 
-            micBtn.textContent = '🔴'; 
-        } catch (e) {}
-    }
-
-    function stopListening() {
-        if (!recognition) return;
-        try { recognition.stop(); } catch (e) {}
-        isListening = false; 
-        micBtn.classList.remove('listening'); 
-        micBtn.textContent = '🎤';
-    }
-
-    function speakText(text) {
-        if (!synth || !voiceEnabled) return;
-        synth.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'bn-BD';
-        utterance.rate = 0.9;
-        const voices = synth.getVoices();
-        if (voices.length) {
-            const bnVoice = voices.find(v => v.lang.startsWith('bn')) || voices[0];
-            utterance.voice = bnVoice;
-        }
-        synth.speak(utterance);
-    }
-
-    function toggleVoice(e) {
-        voiceEnabled = e.target.checked;
-        const voiceStatusText = document.getElementById('voiceStatusText');
-
-        if (voiceEnabled) {
-            if(voiceStatusText) voiceStatusText.textContent = '🔊 ভয়েস চালু';
-            speakText('ভয়েস আউটপুট চালু হয়েছে।');
-        } else {
-            if(voiceStatusText) voiceStatusText.textContent = '🔊 ভয়েস বন্ধ';
-            if (synth) synth.cancel();
-        }
-    }
-
-    function openSidebar() { 
-        sidebar.classList.add('open'); 
-        sidebarOverlay.classList.add('show'); 
-    }
-    
-    function closeSidebar() { 
-        sidebar.classList.remove('open'); 
-        sidebarOverlay.classList.remove('show'); 
-    }
-
-    menuToggle.addEventListener('click', () => sidebar.classList.contains('open') ? closeSidebar() : openSidebar());
-    sidebarOverlay.addEventListener('click', closeSidebar);
-    
-    newChatBtn.addEventListener('click', () => {
-        currentConversationId = null; 
-        messages = []; 
-        renderMessages(); 
-        showWelcomeScreen(true); 
-        closeSidebar(); 
-        userInput.focus();
-    });
-    
-    sendBtn.addEventListener('click', () => { 
-        if (userInput.value.trim() && !isProcessing) sendMessage(userInput.value.trim()); 
-    });
-    
-    userInput.addEventListener('input', () => { 
-        autoResizeTextarea(); 
-        updateSendButton(); 
-    });
-    
-    userInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) { 
-            e.preventDefault(); 
-            sendBtn.click(); 
-        }
-    });
-    
-    micBtn.addEventListener('click', () => isListening ? stopListening() : startListening());
-
-    if(voiceToggleBtn) {
-        voiceToggleBtn.addEventListener('change', toggleVoice);
-    }
-
-    document.addEventListener('keydown', (e) => { 
-        if (e.key === 'Escape') closeSidebar(); 
-    });
-    
-    attachSuggestionListeners();
-    init();
-    userInput.focus();
-})();
+    renderHistory();
+});
