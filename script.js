@@ -9,13 +9,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const historyList = document.getElementById("historyList");
     const newRxBtn = document.getElementById("newRxBtn");
 
-    
+    // LocalStorage থেকে নিরাপদভাবে API Key লোড করা (GitHub Block ঠেকাতে)
     let GEMINI_API_KEY = localStorage.getItem("DR_SAMI_GEMINI_KEY") || "";
 
-    
+    // API Key নেওয়ার সহজ ও নিরাপদ ফাংশন
     function getApiKey() {
         if (!GEMINI_API_KEY) {
-            const userKey = prompt("🔑 Please enter your Gemini API Key:");
+            const userKey = prompt("🔑 Please enter your Gemini API Key (saved safely in your browser):");
             if (userKey && userKey.trim() !== "") {
                 GEMINI_API_KEY = userKey.trim();
                 localStorage.setItem("DR_SAMI_GEMINI_KEY", GEMINI_API_KEY);
@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loader.style.display = "block";
         generateBtn.disabled = true;
 
-        // 🌐 Auto Language Detection Prompt (Bangla + English)
+        // 🌐 System Prompt (Bangla + English Auto Detect)
         const systemPrompt = `
         You are an experienced and highly competent medical specialist AI (Dr. Sami AI). 
         The user will provide a disease name or medical symptoms in EITHER English or Bengali (বাংলা).
@@ -96,8 +96,8 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         try {
-            // 🔥 এখানে আপডেট করা মডেল gemini-2.5-flash লিংক করা হয়েছে
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeKey}`, {
+            // ✅ গুগলের বর্তমান অফিসিয়াল মডেল gemini-2.0-flash ব্যবহার করা হয়েছে
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -113,10 +113,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await response.json();
 
             if (data.error) {
+                // Key ভুল বা ব্লকড হলে অটো রিসেট করবে
                 if (data.error.code === 400 || data.error.code === 401 || data.error.code === 403) {
                     localStorage.removeItem("DR_SAMI_GEMINI_KEY");
                     GEMINI_API_KEY = "";
-                    throw new Error("Invalid API Key! Key has been reset. Please click Generate again and enter a valid API key.");
+                    throw new Error("Invalid or revoked API key! Key has been reset. Please click Generate again and enter a fresh API Key.");
                 }
                 throw new Error(data.error.message || "API Error occurred.");
             }
